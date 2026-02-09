@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON File Splitter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 700px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f1ff;
+        }
+        
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8e9ff;
+            transform: scale(1.02);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .upload-text {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .upload-hint {
+            color: #999;
+            font-size: 13px;
+        }
+        
+        .file-info {
+            background: #f8f9ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .file-info.show {
+            display: block;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .parts-container {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .parts-container.show {
+            display: block;
+        }
+        
+        .parts-title {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .part-item {
+            background: #f8f9ff;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .part-info {
+            flex: 1;
+        }
+        
+        .part-name {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .part-size {
+            color: #666;
+            font-size: 13px;
+        }
+        
+        .download-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .download-all {
+            margin-top: 20px;
+            width: 100%;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+        
+        .download-all:hover {
+            transform: translateY(-2px);
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 JSON File Splitter</h1>
+        <p class="subtitle">Split large JSON files into smaller parts (max 16MB each)</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Click to upload or drag & drop</div>
+            <div class="upload-hint">JSON files up to any size</div>
+            <input type="file" id="fileInput" accept=".json">
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="file-info" id="fileInfo">
+            <div class="info-row">
+                <span class="info-label">File Name:</span>
+                <span class="info-value" id="fileName"></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Original Size:</span>
+                <span class="info-value" id="fileSize"></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Number of Parts:</span>
+                <span class="info-value" id="numParts"></span>
+            </div>
+        </div>
+        
+        <div class="parts-container" id="partsContainer">
+            <div class="parts-title">Split Parts</div>
+            <div id="partsList"></div>
+            <button class="download-all" id="downloadAll">Download All Parts</button>
+        </div>
+    </div>
+    
+    <script>
+        const MAX_SIZE = 16 * 1024 * 1024; // 16MB in bytes
+        let fileParts = [];
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const partsContainer = document.getElementById('partsContainer');
+        const error = document.getElementById('error');
+        
+        // Click to upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            error.classList.remove('show');
+            
+            if (!file.name.endsWith('.json')) {
+                showError('Please upload a JSON file');
+                return;
+            }
+            
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                try {
+                    const content = e.target.result;
+                    
+                    // Try to parse to validate JSON
+                    JSON.parse(content);
+                    
+                    splitFile(file.name, content);
+                } catch (err) {
+                    showError('Invalid JSON file: ' + err.message);
+                }
+            };
+            
+            reader.onerror = () => {
+                showError('Error reading file');
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        function splitFile(fileName, content) {
+            const contentBytes = new Blob([content]).size;
+            const numParts = Math.ceil(contentBytes / MAX_SIZE);
+            
+            // Display file info
+            document.getElementById('fileName').textContent = fileName;
+            document.getElementById('fileSize').textContent = formatBytes(contentBytes);
+            document.getElementById('numParts').textContent = numParts;
+            fileInfo.classList.add('show');
+            
+            // Split content
+            fileParts = [];
+            const baseFileName = fileName.replace('.json', '');
+            
+            if (numParts === 1) {
+                fileParts.push({
+                    name: fileName,
+                    content: content,
+                    size: contentBytes
+                });
+            } else {
+                const chunkSize = Math.ceil(content.length / numParts);
+                
+                for (let i = 0; i < numParts; i++) {
+                    const start = i * chunkSize;
+                    const end = Math.min(start + chunkSize, content.length);
+                    const chunk = content.substring(start, end);
+                    
+                    fileParts.push({
+                        name: `${baseFileName}_part${i + 1}.json`,
+                        content: chunk,
+                        size: new Blob([chunk]).size
+                    });
+                }
+            }
+            
+            displayParts();
+        }
+        
+        function displayParts() {
+            const partsList = document.getElementById('partsList');
+            partsList.innerHTML = '';
+            
+            fileParts.forEach((part, index) => {
+                const partItem = document.createElement('div');
+                partItem.className = 'part-item';
+                partItem.innerHTML = `
+                    <div class="part-info">
+                        <div class="part-name">${part.name}</div>
+                        <div class="part-size">${formatBytes(part.size)}</div>
+                    </div>
+                    <button class="download-btn" onclick="downloadPart(${index})">Download</button>
+                `;
+                partsList.appendChild(partItem);
+            });
+            
+            partsContainer.classList.add('show');
+        }
+        
+        function downloadPart(index) {
+            const part = fileParts[index];
+            const blob = new Blob([part.content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = part.name;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        document.getElementById('downloadAll').addEventListener('click', () => {
+            fileParts.forEach((_, index) => {
+                setTimeout(() => downloadPart(index), index * 200);
+            });
+        });
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        function showError(message) {
+            error.textContent = message;
+            error.classList.add('show');
+            fileInfo.classList.remove('show');
+            partsContainer.classList.remove('show');
+        }
+    </script>
+</body>
+</html>
