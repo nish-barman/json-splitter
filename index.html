@@ -207,7 +207,7 @@
 <body>
     <div class="container">
         <h1>📄 JSON File Splitter</h1>
-        <p class="subtitle">Split large JSON files into smaller parts (max 16MB each)</p>
+        <p class="subtitle">Split large JSON files into smaller parts (max 7MB each)</p>
         
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📁</div>
@@ -241,7 +241,7 @@
     </div>
     
     <script>
-        const MAX_SIZE = 16 * 1024 * 1024; // 16MB in bytes
+        const MAX_SIZE = 7 * 1024 * 1024; // 7MB in bytes
         let fileParts = [];
         
         const uploadArea = document.getElementById('uploadArea');
