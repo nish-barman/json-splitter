@@ -240,8 +240,8 @@
         
         <div class="info-box" id="infoBox">
             <div class="info-item"><span class="info-label">File:</span> <span id="fileName"></span></div>
-            <div class="info-item"><span class="info-label">Size:</span> <span id="fileSize"></span></div>
-            <div class="info-item"><span class="info-label">Parts needed:</span> <span id="partsCount"></span></div>
+            <div class="info-item"><span class="info-label">Original Size:</span> <span id="fileSize"></span></div>
+            <div class="info-item"><span class="info-label">Parts created:</span> <span id="partsCount"></span></div>
         </div>
         
         <div class="progress-bar" id="progressBar">
@@ -271,10 +271,8 @@
         const errorDiv = document.getElementById('error');
         const results = document.getElementById('results');
 
-        // Click to upload
         uploadArea.addEventListener('click', () => fileInput.click());
 
-        // Drag and drop
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
@@ -318,18 +316,15 @@
             hideError();
             results.classList.remove('show');
             
-            // Validate file type
             if (!file.name.endsWith('.json')) {
                 showError('Please select a JSON file');
                 return;
             }
 
-            // Show file info
             document.getElementById('fileName').textContent = file.name;
             document.getElementById('fileSize').textContent = formatBytes(file.size);
             infoBox.classList.add('show');
 
-            // Read file
             progressBar.classList.add('show');
             progressFill.style.width = '30%';
 
@@ -337,7 +332,6 @@
                 const text = await file.text();
                 progressFill.style.width = '50%';
 
-                // Parse JSON
                 let data;
                 try {
                     data = JSON.parse(text);
@@ -348,8 +342,11 @@
 
                 progressFill.style.width = '70%';
 
-                // Check if splitting is needed
-                if (file.size <= MAX_SIZE_BYTES) {
+                // Check if splitting is needed by testing the stringified size
+                const testString = JSON.stringify(data, null, 2);
+                const testSize = new Blob([testString]).size;
+                
+                if (testSize <= MAX_SIZE_BYTES) {
                     document.getElementById('partsCount').textContent = '1 (no splitting needed)';
                     showError('File is already under 16MB. No splitting needed!');
                     errorDiv.style.background = '#e0f7e0';
@@ -358,8 +355,7 @@
                     return;
                 }
 
-                // Split the data
-                await splitJSON(data, file.name, file.size);
+                await splitJSON(data, file.name);
                 
                 progressFill.style.width = '100%';
                 
@@ -373,76 +369,99 @@
             }
         }
 
-        async function splitJSON(data, fileName, fileSize) {
+        async function splitJSON(data, fileName) {
             splitParts = [];
             const baseName = fileName.replace('.json', '');
             
             if (Array.isArray(data)) {
-                await splitArray(data, baseName, fileSize);
+                await splitArray(data, baseName);
             } else if (typeof data === 'object') {
-                await splitObject(data, baseName, fileSize);
+                await splitObject(data, baseName);
             } else {
                 throw new Error('JSON must be an array or object');
             }
         }
 
-        async function splitArray(data, baseName, fileSize) {
+        async function splitArray(data, baseName) {
             const totalItems = data.length;
-            const numParts = Math.ceil(fileSize / MAX_SIZE_BYTES);
-            const itemsPerPart = Math.ceil(totalItems / numParts);
+            let partNum = 1;
+            let currentChunk = [];
             
-            document.getElementById('partsCount').textContent = numParts;
-            
-            for (let i = 0; i < totalItems; i += itemsPerPart) {
-                const partNum = Math.floor(i / itemsPerPart) + 1;
-                const chunk = data.slice(i, i + itemsPerPart);
+            for (let i = 0; i < totalItems; i++) {
+                currentChunk.push(data[i]);
                 
-                // Create valid JSON array
-                const jsonString = JSON.stringify(chunk, null, 2);
-                const blob = new Blob([jsonString], { type: 'application/json' });
-                const fileName = `${baseName}_part${partNum}.json`;
+                // Check if adding one more item would exceed the limit
+                const testChunk = [...currentChunk];
+                if (i < totalItems - 1) {
+                    testChunk.push(data[i + 1]);
+                }
                 
-                splitParts.push({
-                    name: fileName,
-                    blob: blob,
-                    size: blob.size,
-                    items: chunk.length
-                });
+                const testString = JSON.stringify(testChunk, null, 2);
+                const testSize = new Blob([testString]).size;
+                
+                // If we're at the limit or last item, save this chunk
+                if (testSize > MAX_SIZE_BYTES || i === totalItems - 1) {
+                    const jsonString = JSON.stringify(currentChunk, null, 2);
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    const fileName = `${baseName}_part${partNum}.json`;
+                    
+                    splitParts.push({
+                        name: fileName,
+                        blob: blob,
+                        size: blob.size,
+                        items: currentChunk.length
+                    });
+                    
+                    partNum++;
+                    currentChunk = [];
+                }
             }
             
+            document.getElementById('partsCount').textContent = splitParts.length;
             displayResults();
         }
 
-        async function splitObject(data, baseName, fileSize) {
+        async function splitObject(data, baseName) {
             const keys = Object.keys(data);
             const totalKeys = keys.length;
-            const numParts = Math.ceil(fileSize / MAX_SIZE_BYTES);
-            const keysPerPart = Math.ceil(totalKeys / numParts);
+            let partNum = 1;
+            let currentChunk = {};
+            let currentKeys = [];
             
-            document.getElementById('partsCount').textContent = numParts;
-            
-            for (let i = 0; i < totalKeys; i += keysPerPart) {
-                const partNum = Math.floor(i / keysPerPart) + 1;
-                const chunkKeys = keys.slice(i, i + keysPerPart);
+            for (let i = 0; i < totalKeys; i++) {
+                const key = keys[i];
+                currentChunk[key] = data[key];
+                currentKeys.push(key);
                 
-                // Create valid JSON object
-                const chunkObj = {};
-                chunkKeys.forEach(key => {
-                    chunkObj[key] = data[key];
-                });
+                // Check if adding one more key would exceed the limit
+                const testChunk = {...currentChunk};
+                if (i < totalKeys - 1) {
+                    testChunk[keys[i + 1]] = data[keys[i + 1]];
+                }
                 
-                const jsonString = JSON.stringify(chunkObj, null, 2);
-                const blob = new Blob([jsonString], { type: 'application/json' });
-                const fileName = `${baseName}_part${partNum}.json`;
+                const testString = JSON.stringify(testChunk, null, 2);
+                const testSize = new Blob([testString]).size;
                 
-                splitParts.push({
-                    name: fileName,
-                    blob: blob,
-                    size: blob.size,
-                    keys: chunkKeys.length
-                });
+                // If we're at the limit or last key, save this chunk
+                if (testSize > MAX_SIZE_BYTES || i === totalKeys - 1) {
+                    const jsonString = JSON.stringify(currentChunk, null, 2);
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    const fileName = `${baseName}_part${partNum}.json`;
+                    
+                    splitParts.push({
+                        name: fileName,
+                        blob: blob,
+                        size: blob.size,
+                        keys: currentKeys.length
+                    });
+                    
+                    partNum++;
+                    currentChunk = {};
+                    currentKeys = [];
+                }
             }
             
+            document.getElementById('partsCount').textContent = splitParts.length;
             displayResults();
         }
 
