@@ -1,404 +1,184 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JSON File Splitter</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 16px;
-            padding: 40px;
-            max-width: 700px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 28px;
-        }
-        
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-        
-        .upload-area {
-            border: 3px dashed #667eea;
-            border-radius: 12px;
-            padding: 40px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: #f8f9ff;
-        }
-        
-        .upload-area:hover {
-            border-color: #764ba2;
-            background: #f0f1ff;
-        }
-        
-        .upload-area.dragover {
-            border-color: #764ba2;
-            background: #e8e9ff;
-            transform: scale(1.02);
-        }
-        
-        .upload-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-        
-        input[type="file"] {
-            display: none;
-        }
-        
-        .upload-text {
-            color: #667eea;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        
-        .upload-hint {
-            color: #999;
-            font-size: 13px;
-        }
-        
-        .file-info {
-            background: #f8f9ff;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-            display: none;
-        }
-        
-        .file-info.show {
-            display: block;
-        }
-        
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .info-row:last-child {
-            border-bottom: none;
-        }
-        
-        .info-label {
-            color: #666;
-            font-weight: 500;
-        }
-        
-        .info-value {
-            color: #333;
-            font-weight: 600;
-        }
-        
-        .parts-container {
-            margin-top: 30px;
-            display: none;
-        }
-        
-        .parts-container.show {
-            display: block;
-        }
-        
-        .parts-title {
-            color: #333;
-            font-size: 18px;
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
-        
-        .part-item {
-            background: #f8f9ff;
-            border-radius: 8px;
-            padding: 15px 20px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .part-info {
-            flex: 1;
-        }
-        
-        .part-name {
-            color: #333;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-        
-        .part-size {
-            color: #666;
-            font-size: 13px;
-        }
-        
-        .download-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 10px 24px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: transform 0.2s;
-        }
-        
-        .download-btn:hover {
-            transform: translateY(-2px);
-        }
-        
-        .download-all {
-            margin-top: 20px;
-            width: 100%;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            border: none;
-            padding: 14px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 16px;
-            transition: transform 0.2s;
-        }
-        
-        .download-all:hover {
-            transform: translateY(-2px);
-        }
-        
-        .error {
-            background: #fee;
-            color: #c33;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 15px;
-            display: none;
-        }
-        
-        .error.show {
-            display: block;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>📄 JSON File Splitter</h1>
-        <p class="subtitle">Split large JSON files into smaller parts (max 5MB each)</p>
-        
-        <div class="upload-area" id="uploadArea">
-            <div class="upload-icon">📁</div>
-            <div class="upload-text">Click to upload or drag & drop</div>
-            <div class="upload-hint">JSON files up to any size</div>
-            <input type="file" id="fileInput" accept=".json">
-        </div>
-        
-        <div class="error" id="error"></div>
-        
-        <div class="file-info" id="fileInfo">
-            <div class="info-row">
-                <span class="info-label">File Name:</span>
-                <span class="info-value" id="fileName"></span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Original Size:</span>
-                <span class="info-value" id="fileSize"></span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Number of Parts:</span>
-                <span class="info-value" id="numParts"></span>
-            </div>
-        </div>
-        
-        <div class="parts-container" id="partsContainer">
-            <div class="parts-title">Split Parts</div>
-            <div id="partsList"></div>
-            <button class="download-all" id="downloadAll">Download All Parts</button>
-        </div>
-    </div>
+#!/usr/bin/env python3
+"""
+JSON File Splitter - Fixed Version
+Splits large JSON files into smaller valid JSON parts (max 16MB each)
+"""
+
+import os
+import sys
+import json
+import math
+
+MAX_SIZE_MB = 16
+MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024
+
+def format_bytes(bytes_size):
+    """Convert bytes to human readable format"""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if bytes_size < 1024.0:
+            return f"{bytes_size:.2f} {unit}"
+        bytes_size /= 1024.0
+    return f"{bytes_size:.2f} TB"
+
+def split_json_file(input_file):
+    """Split a JSON file into valid JSON parts with max 16MB each"""
     
-    <script>
-        const MAX_SIZE = 5 * 1024 * 1024; // 5MB in bytes
-        let fileParts = [];
+    print(f"\n{'='*60}")
+    print(f"JSON File Splitter - Max {MAX_SIZE_MB}MB per part")
+    print(f"{'='*60}\n")
+    
+    # Check if file exists
+    if not os.path.exists(input_file):
+        print(f"❌ Error: File '{input_file}' not found!")
+        return False
+    
+    file_size = os.path.getsize(input_file)
+    print(f"📄 Input file: {os.path.basename(input_file)}")
+    print(f"📊 File size: {format_bytes(file_size)}\n")
+    
+    # Check if file needs splitting
+    if file_size <= MAX_SIZE_BYTES:
+        print(f"✅ File is already under {MAX_SIZE_MB}MB. No splitting needed!")
+        return True
+    
+    # Read and parse JSON
+    print("🔍 Reading and validating JSON file...")
+    try:
+        with open(input_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"❌ Error: Invalid JSON file - {e}")
+        return False
+    except Exception as e:
+        print(f"❌ Error reading file: {e}")
+        return False
+    
+    print("✅ JSON file is valid!\n")
+    
+    # Determine how to split based on data type
+    if isinstance(data, list):
+        return split_json_array(data, input_file, file_size)
+    elif isinstance(data, dict):
+        return split_json_object(data, input_file, file_size)
+    else:
+        print("❌ Error: JSON must be an array or object to split")
+        return False
+
+def split_json_array(data, input_file, original_size):
+    """Split a JSON array into valid JSON array parts"""
+    
+    total_items = len(data)
+    print(f"📋 JSON Type: Array with {total_items} items")
+    
+    # Calculate number of parts needed
+    num_parts = math.ceil(original_size / MAX_SIZE_BYTES)
+    items_per_part = math.ceil(total_items / num_parts)
+    
+    print(f"✂️  Splitting into approximately {num_parts} parts")
+    print(f"📦 ~{items_per_part} items per part\n")
+    
+    # Create output directory
+    base_name = os.path.splitext(os.path.basename(input_file))[0]
+    output_dir = f"{base_name}_split"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Split the array
+    parts_created = 0
+    for i in range(0, total_items, items_per_part):
+        part_num = parts_created + 1
+        chunk = data[i:i + items_per_part]
         
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const fileInfo = document.getElementById('fileInfo');
-        const partsContainer = document.getElementById('partsContainer');
-        const error = document.getElementById('error');
+        # Create valid JSON array for this part
+        output_file = os.path.join(output_dir, f"{base_name}_part{part_num}.json")
         
-        // Click to upload
-        uploadArea.addEventListener('click', () => fileInput.click());
-        
-        // Drag and drop
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-        
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-        
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
-        });
-        
-        // File input change
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
-            }
-        });
-        
-        function handleFile(file) {
-            error.classList.remove('show');
+        try:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(chunk, f, indent=2, ensure_ascii=False)
             
-            if (!file.name.endsWith('.json')) {
-                showError('Please upload a JSON file');
-                return;
-            }
+            part_size = os.path.getsize(output_file)
+            print(f"✅ Part {part_num}: {os.path.basename(output_file)} ({format_bytes(part_size)}) - {len(chunk)} items")
+            parts_created += 1
             
-            const reader = new FileReader();
-            
-            reader.onload = (e) => {
-                try {
-                    const content = e.target.result;
-                    
-                    // Try to parse to validate JSON
-                    JSON.parse(content);
-                    
-                    splitFile(file.name, content);
-                } catch (err) {
-                    showError('Invalid JSON file: ' + err.message);
-                }
-            };
-            
-            reader.onerror = () => {
-                showError('Error reading file');
-            };
-            
-            reader.readAsText(file);
-        }
+        except Exception as e:
+            print(f"❌ Error writing part {part_num}: {e}")
+            return False
+    
+    print(f"\n🎉 Success! Created {parts_created} valid JSON files")
+    print(f"📁 Files saved in '{output_dir}/' directory\n")
+    return True
+
+def split_json_object(data, input_file, original_size):
+    """Split a JSON object into valid JSON object parts"""
+    
+    total_keys = len(data.keys())
+    print(f"📋 JSON Type: Object with {total_keys} keys")
+    
+    # Calculate number of parts needed
+    num_parts = math.ceil(original_size / MAX_SIZE_BYTES)
+    keys_per_part = math.ceil(total_keys / num_parts)
+    
+    print(f"✂️  Splitting into approximately {num_parts} parts")
+    print(f"📦 ~{keys_per_part} keys per part\n")
+    
+    # Create output directory
+    base_name = os.path.splitext(os.path.basename(input_file))[0]
+    output_dir = f"{base_name}_split"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Split the object
+    keys = list(data.keys())
+    parts_created = 0
+    
+    for i in range(0, total_keys, keys_per_part):
+        part_num = parts_created + 1
+        chunk_keys = keys[i:i + keys_per_part]
         
-        function splitFile(fileName, content) {
-            const contentBytes = new Blob([content]).size;
-            const numParts = Math.ceil(contentBytes / MAX_SIZE);
-            
-            // Display file info
-            document.getElementById('fileName').textContent = fileName;
-            document.getElementById('fileSize').textContent = formatBytes(contentBytes);
-            document.getElementById('numParts').textContent = numParts;
-            fileInfo.classList.add('show');
-            
-            // Split content
-            fileParts = [];
-            const baseFileName = fileName.replace('.json', '');
-            
-            if (numParts === 1) {
-                fileParts.push({
-                    name: fileName,
-                    content: content,
-                    size: contentBytes
-                });
-            } else {
-                const chunkSize = Math.ceil(content.length / numParts);
-                
-                for (let i = 0; i < numParts; i++) {
-                    const start = i * chunkSize;
-                    const end = Math.min(start + chunkSize, content.length);
-                    const chunk = content.substring(start, end);
-                    
-                    fileParts.push({
-                        name: `${baseFileName}_part${i + 1}.json`,
-                        content: chunk,
-                        size: new Blob([chunk]).size
-                    });
-                }
-            }
-            
-            displayParts();
-        }
+        # Create valid JSON object for this part
+        chunk_dict = {key: data[key] for key in chunk_keys}
         
-        function displayParts() {
-            const partsList = document.getElementById('partsList');
-            partsList.innerHTML = '';
+        output_file = os.path.join(output_dir, f"{base_name}_part{part_num}.json")
+        
+        try:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(chunk_dict, f, indent=2, ensure_ascii=False)
             
-            fileParts.forEach((part, index) => {
-                const partItem = document.createElement('div');
-                partItem.className = 'part-item';
-                partItem.innerHTML = `
-                    <div class="part-info">
-                        <div class="part-name">${part.name}</div>
-                        <div class="part-size">${formatBytes(part.size)}</div>
-                    </div>
-                    <button class="download-btn" onclick="downloadPart(${index})">Download</button>
-                `;
-                partsList.appendChild(partItem);
-            });
+            part_size = os.path.getsize(output_file)
+            print(f"✅ Part {part_num}: {os.path.basename(output_file)} ({format_bytes(part_size)}) - {len(chunk_keys)} keys")
+            parts_created += 1
             
-            partsContainer.classList.add('show');
-        }
+        except Exception as e:
+            print(f"❌ Error writing part {part_num}: {e}")
+            return False
+    
+    print(f"\n🎉 Success! Created {parts_created} valid JSON files")
+    print(f"📁 Files saved in '{output_dir}/' directory\n")
+    return True
+
+def main():
+    print("\n" + "="*60)
+    print("JSON FILE SPLITTER - VALID JSON OUTPUT")
+    print("="*60)
+    
+    # Check if file was provided as argument
+    if len(sys.argv) > 1:
+        input_file = sys.argv[1]
+    else:
+        # Prompt for file path
+        print("\nDrag and drop your JSON file here (or type the path):")
+        input_file = input().strip()
         
-        function downloadPart(index) {
-            const part = fileParts[index];
-            const blob = new Blob([part.content], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = part.name;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-        document.getElementById('downloadAll').addEventListener('click', () => {
-            fileParts.forEach((_, index) => {
-                setTimeout(() => downloadPart(index), index * 200);
-            });
-        });
-        
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-        }
-        
-        function showError(message) {
-            error.textContent = message;
-            error.classList.add('show');
-            fileInfo.classList.remove('show');
-            partsContainer.classList.remove('show');
-        }
-    </script>
-</body>
-</html>
+        # Remove quotes if present (from drag-drop)
+        input_file = input_file.strip('"').strip("'")
+    
+    # Process the file
+    success = split_json_file(input_file)
+    
+    # Wait for user input before closing (so window doesn't close immediately)
+    if success:
+        input("\nPress Enter to exit...")
+    else:
+        input("\nPress Enter to exit...")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
