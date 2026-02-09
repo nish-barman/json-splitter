@@ -277,7 +277,7 @@
     <script>
         const MAX_SIZE_MB = 16;
         const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
-        const TARGET_SIZE_BYTES = MAX_SIZE_BYTES * 0.95;
+        const TARGET_SIZE_BYTES = MAX_SIZE_BYTES * 0.90; // 90% to leave safety margin
         let splitParts = [];
 
         const uploadArea = document.getElementById('uploadArea');
@@ -439,24 +439,60 @@
             }
             
             const nestedArray = obj[largestArrayKey];
-            const itemsPerPart = Math.ceil(nestedArray.length / Math.ceil(largestArraySize / TARGET_SIZE_BYTES));
+            let partNum = 1;
+            let currentChunk = [];
             
-            for (let i = 0; i < nestedArray.length; i += itemsPerPart) {
-                const partNum = Math.floor(i / itemsPerPart) + 1;
-                const chunk = nestedArray.slice(i, i + itemsPerPart);
+            for (let i = 0; i < nestedArray.length; i++) {
+                const item = nestedArray[i];
                 
-                // Create new object with same structure but subset of nested array
-                const partObj = [{...obj, [largestArrayKey]: chunk}];
+                // Calculate what the size would be with this item
+                const testChunk = [...currentChunk, item];
+                const testObj = [{...obj, [largestArrayKey]: testChunk}];
+                const testSize = getStringSize(JSON.stringify(testObj, null, 2));
                 
+                // If adding this item would exceed limit, save current part and start new one
+                if (testSize > TARGET_SIZE_BYTES && currentChunk.length > 0) {
+                    // Save current part
+                    const partObj = [{...obj, [largestArrayKey]: currentChunk}];
+                    const jsonString = JSON.stringify(partObj, null, 2);
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    
+                    // Verify size is under MAX_SIZE_BYTES
+                    if (blob.size > MAX_SIZE_BYTES) {
+                        showWarning(`Warning: Part ${partNum} is ${formatBytes(blob.size)} which exceeds ${MAX_SIZE_MB}MB. This may happen with very large individual items.`);
+                    }
+                    
+                    const fileName = `${baseName}_part${partNum}.json`;
+                    splitParts.push({
+                        name: fileName,
+                        blob: blob,
+                        size: blob.size,
+                        items: currentChunk.length
+                    });
+                    
+                    partNum++;
+                    currentChunk = [];
+                }
+                
+                currentChunk.push(item);
+            }
+            
+            // Save final part
+            if (currentChunk.length > 0) {
+                const partObj = [{...obj, [largestArrayKey]: currentChunk}];
                 const jsonString = JSON.stringify(partObj, null, 2);
                 const blob = new Blob([jsonString], { type: 'application/json' });
-                const fileName = `${baseName}_part${partNum}.json`;
                 
+                if (blob.size > MAX_SIZE_BYTES) {
+                    showWarning(`Warning: Part ${partNum} is ${formatBytes(blob.size)} which exceeds ${MAX_SIZE_MB}MB. This may happen with very large individual items.`);
+                }
+                
+                const fileName = `${baseName}_part${partNum}.json`;
                 splitParts.push({
                     name: fileName,
                     blob: blob,
                     size: blob.size,
-                    items: chunk.length
+                    items: currentChunk.length
                 });
             }
             
@@ -467,18 +503,26 @@
         async function splitArray(data, baseName) {
             let partNum = 1;
             let currentChunk = [];
-            let currentSize = 2;
             
             for (let i = 0; i < data.length; i++) {
-                const itemString = JSON.stringify(data[i], null, 2);
-                const itemSize = getStringSize(itemString);
-                const separator = currentChunk.length > 0 ? 3 : 0;
+                const item = data[i];
                 
-                if (currentSize + itemSize + separator > TARGET_SIZE_BYTES && currentChunk.length > 0) {
+                // Calculate what the size would be with this item
+                const testChunk = [...currentChunk, item];
+                const testSize = getStringSize(JSON.stringify(testChunk, null, 2));
+                
+                // If adding this item would exceed limit, save current part and start new one
+                if (testSize > TARGET_SIZE_BYTES && currentChunk.length > 0) {
+                    // Save current part
                     const jsonString = JSON.stringify(currentChunk, null, 2);
                     const blob = new Blob([jsonString], { type: 'application/json' });
-                    const fileName = `${baseName}_part${partNum}.json`;
                     
+                    // Verify size is under MAX_SIZE_BYTES
+                    if (blob.size > MAX_SIZE_BYTES) {
+                        showWarning(`Warning: Part ${partNum} is ${formatBytes(blob.size)} which exceeds ${MAX_SIZE_MB}MB. This may happen with very large individual items.`);
+                    }
+                    
+                    const fileName = `${baseName}_part${partNum}.json`;
                     splitParts.push({
                         name: fileName,
                         blob: blob,
@@ -488,18 +532,21 @@
                     
                     partNum++;
                     currentChunk = [];
-                    currentSize = 2;
                 }
                 
-                currentChunk.push(data[i]);
-                currentSize += itemSize + separator;
+                currentChunk.push(item);
             }
             
+            // Save final part
             if (currentChunk.length > 0) {
                 const jsonString = JSON.stringify(currentChunk, null, 2);
                 const blob = new Blob([jsonString], { type: 'application/json' });
-                const fileName = `${baseName}_part${partNum}.json`;
                 
+                if (blob.size > MAX_SIZE_BYTES) {
+                    showWarning(`Warning: Part ${partNum} is ${formatBytes(blob.size)} which exceeds ${MAX_SIZE_MB}MB. This may happen with very large individual items.`);
+                }
+                
+                const fileName = `${baseName}_part${partNum}.json`;
                 splitParts.push({
                     name: fileName,
                     blob: blob,
@@ -517,19 +564,26 @@
             let partNum = 1;
             let currentChunk = {};
             let currentKeys = [];
-            let currentSize = 2;
             
             for (let i = 0; i < keys.length; i++) {
                 const key = keys[i];
-                const pairString = JSON.stringify({[key]: data[key]}, null, 2);
-                const pairSize = getStringSize(pairString) - 4;
-                const separator = currentKeys.length > 0 ? 3 : 0;
                 
-                if (currentSize + pairSize + separator > TARGET_SIZE_BYTES && currentKeys.length > 0) {
+                // Calculate what the size would be with this key-value pair
+                const testChunk = {...currentChunk, [key]: data[key]};
+                const testSize = getStringSize(JSON.stringify(testChunk, null, 2));
+                
+                // If adding this pair would exceed limit, save current part and start new one
+                if (testSize > TARGET_SIZE_BYTES && currentKeys.length > 0) {
+                    // Save current part
                     const jsonString = JSON.stringify(currentChunk, null, 2);
                     const blob = new Blob([jsonString], { type: 'application/json' });
-                    const fileName = `${baseName}_part${partNum}.json`;
                     
+                    // Verify size is under MAX_SIZE_BYTES
+                    if (blob.size > MAX_SIZE_BYTES) {
+                        showWarning(`Warning: Part ${partNum} is ${formatBytes(blob.size)} which exceeds ${MAX_SIZE_MB}MB. This may happen with very large individual properties.`);
+                    }
+                    
+                    const fileName = `${baseName}_part${partNum}.json`;
                     splitParts.push({
                         name: fileName,
                         blob: blob,
@@ -540,19 +594,22 @@
                     partNum++;
                     currentChunk = {};
                     currentKeys = [];
-                    currentSize = 2;
                 }
                 
                 currentChunk[key] = data[key];
                 currentKeys.push(key);
-                currentSize += pairSize + separator;
             }
             
+            // Save final part
             if (currentKeys.length > 0) {
                 const jsonString = JSON.stringify(currentChunk, null, 2);
                 const blob = new Blob([jsonString], { type: 'application/json' });
-                const fileName = `${baseName}_part${partNum}.json`;
                 
+                if (blob.size > MAX_SIZE_BYTES) {
+                    showWarning(`Warning: Part ${partNum} is ${formatBytes(blob.size)} which exceeds ${MAX_SIZE_MB}MB. This may happen with very large individual properties.`);
+                }
+                
+                const fileName = `${baseName}_part${partNum}.json`;
                 splitParts.push({
                     name: fileName,
                     blob: blob,
