@@ -388,19 +388,13 @@
             let currentChunk = [];
             
             for (let i = 0; i < totalItems; i++) {
-                currentChunk.push(data[i]);
-                
-                // Check if adding one more item would exceed the limit
-                const testChunk = [...currentChunk];
-                if (i < totalItems - 1) {
-                    testChunk.push(data[i + 1]);
-                }
-                
+                // Test if adding this item would exceed the limit
+                const testChunk = [...currentChunk, data[i]];
                 const testString = JSON.stringify(testChunk, null, 2);
                 const testSize = new Blob([testString]).size;
                 
-                // If we're at the limit or last item, save this chunk
-                if (testSize > MAX_SIZE_BYTES || i === totalItems - 1) {
+                if (testSize > MAX_SIZE_BYTES && currentChunk.length > 0) {
+                    // Save current chunk without this item
                     const jsonString = JSON.stringify(currentChunk, null, 2);
                     const blob = new Blob([jsonString], { type: 'application/json' });
                     const fileName = `${baseName}_part${partNum}.json`;
@@ -413,8 +407,25 @@
                     });
                     
                     partNum++;
-                    currentChunk = [];
+                    currentChunk = [data[i]]; // Start new chunk with current item
+                } else {
+                    // Add item to current chunk
+                    currentChunk.push(data[i]);
                 }
+            }
+            
+            // Save any remaining items
+            if (currentChunk.length > 0) {
+                const jsonString = JSON.stringify(currentChunk, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const fileName = `${baseName}_part${partNum}.json`;
+                
+                splitParts.push({
+                    name: fileName,
+                    blob: blob,
+                    size: blob.size,
+                    items: currentChunk.length
+                });
             }
             
             document.getElementById('partsCount').textContent = splitParts.length;
@@ -430,20 +441,14 @@
             
             for (let i = 0; i < totalKeys; i++) {
                 const key = keys[i];
-                currentChunk[key] = data[key];
-                currentKeys.push(key);
                 
-                // Check if adding one more key would exceed the limit
-                const testChunk = {...currentChunk};
-                if (i < totalKeys - 1) {
-                    testChunk[keys[i + 1]] = data[keys[i + 1]];
-                }
-                
+                // Test if adding this key would exceed the limit
+                const testChunk = {...currentChunk, [key]: data[key]};
                 const testString = JSON.stringify(testChunk, null, 2);
                 const testSize = new Blob([testString]).size;
                 
-                // If we're at the limit or last key, save this chunk
-                if (testSize > MAX_SIZE_BYTES || i === totalKeys - 1) {
+                if (testSize > MAX_SIZE_BYTES && Object.keys(currentChunk).length > 0) {
+                    // Save current chunk without this key
                     const jsonString = JSON.stringify(currentChunk, null, 2);
                     const blob = new Blob([jsonString], { type: 'application/json' });
                     const fileName = `${baseName}_part${partNum}.json`;
@@ -456,9 +461,27 @@
                     });
                     
                     partNum++;
-                    currentChunk = {};
-                    currentKeys = [];
+                    currentChunk = {[key]: data[key]}; // Start new chunk with current key
+                    currentKeys = [key];
+                } else {
+                    // Add key to current chunk
+                    currentChunk[key] = data[key];
+                    currentKeys.push(key);
                 }
+            }
+            
+            // Save any remaining keys
+            if (Object.keys(currentChunk).length > 0) {
+                const jsonString = JSON.stringify(currentChunk, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const fileName = `${baseName}_part${partNum}.json`;
+                
+                splitParts.push({
+                    name: fileName,
+                    blob: blob,
+                    size: blob.size,
+                    keys: currentKeys.length
+                });
             }
             
             document.getElementById('partsCount').textContent = splitParts.length;
